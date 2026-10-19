@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI-based Real-Time Posture Detection and Ergonomic Monitoring System using PoseNet and TensorFlow.js. Live posture analysis, skeleton tracking, and instant alerts.">
+  <meta name="author" content="Aryan Raj Pandey">
+  <title>PostureGuard AI — Real-Time Posture Detection Dashboard</title>
+  
+  <!-- Explicit blank favicon to prevent browser/Live Server default logo -->
+  <link rel="icon" href="data:,">
+  <link rel="shortcut icon" href="data:,">
+  
+  <!-- Modern Typography Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  
+  <!-- TensorFlow.js and PoseNet -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet@2.2.2/dist/posenet.min.js"></script>
+  
+  <!-- Chart.js for Live Session Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
+  <!-- Reference-Matched Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Immediate Theme Pre-loader (Prevents flash of unstyled theme on load) -->
+  <script>
+    try {
+      const savedTheme = localStorage.getItem('postureguard_theme');
+      if (savedTheme === 'dark' || (savedTheme !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <!-- Ambient Desktop Background Mesh -->
+  <div class="bg-mesh"></div>
+  <div class="bg-grid"></div>
+
+  <!-- Master Tablet Frame Container (Matching Reference UI) -->
+  <div class="app-tablet">
+    
+    <!-- Left Obsidian Charcoal Sidebar -->
+    <aside class="app-sidebar">
+      <div class="sidebar-top">
+        <!-- Vertical Navigation Icons -->
+        <nav class="sidebar-nav">
+          <button class="nav-item active" title="Overview & Live Vision">
+            <i class="fa-solid fa-border-all"></i>
+          </button>
+          <button class="nav-item" title="Camera & Video Feed" id="sidebarCamBtn">
+            <i class="fa-solid fa-video"></i>
+          </button>
+          <button class="nav-item" title="Posture Analytics" id="sidebarStatsBtn">
+            <i class="fa-solid fa-chart-simple"></i>
+          </button>
+          <button class="nav-item" title="Toggle Light / Dark Theme" id="sidebarThemeBtn">
+            <i class="fa-solid fa-circle-half-stroke"></i>
+          </button>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main Application Workspace -->
+    <main class="app-workspace">
+      
+      <!-- Top Workspace Header -->
+      <header class="workspace-header">
+        <div class="header-title-group">
+          <h1 class="overview-title">Overview</h1>
+          <span class="overview-subtitle">PostureGuard AI — Real-Time Ergonomic Computer Vision</span>
+        </div>
+
+        <div class="header-actions">
+          <!-- Theme Toggle Switcher Button -->
+          <button class="theme-toggle-btn" id="themeToggleBtn" title="Switch to Dark Mode" aria-label="Toggle theme">
+            <span class="theme-icon-wrap">
+              <i class="fa-solid fa-moon icon-moon"></i>
+              <i class="fa-solid fa-sun icon-sun"></i>
+            </span>
+            <span class="theme-btn-text" id="themeBtnText">Dark Mode</span>
+          </button>
+
+          <!-- Live Posture Status Pill -->
+          <div class="status-pill status-standby" id="globalStatusPill">
+            <span class="status-dot"></span>
+            <span class="status-text" id="globalStatusText">System Ready (Camera Off)</span>
+          </div>
+
+          <!-- FPS & AI Latency Badge -->
+          <span class="fps-badge" id="fpsDisplay">0 FPS · 0ms AI</span>
+        </div>
+      </header>
+
+      <!-- 1. Top Bento Row (Portfolio Card + 3 Pastel Asset Cards) -->
+      <section class="top-bento-row">
+        
+        <!-- 1.1 Left Primary Portfolio / Live Vision Card -->
+        <div class="portfolio-stage-card">
+          <div class="portfolio-card-top">
+            <div class="portfolio-header-left">
+              <span class="portfolio-label">Posture Index & Vision</span>
+              <div class="portfolio-balance-val">
+                <span id="mainScoreNum">98</span>
+                <span class="balance-unit">/ 100 Score</span>
+              </div>
+            </div>
+
+            <!-- Stage Control Toolbar Buttons -->
+            <div class="portfolio-top-actions">
+              <button class="pill-btn active" id="modeSittingBtn" data-mode="sitting" title="Desk Sitting Posture">
+                <i class="fa-solid fa-chair"></i> Sitting
+              </button>
+              <button class="pill-btn" id="modeStandingBtn" data-mode="standing" title="Standing Posture">
+                <i class="fa-solid fa-person"></i> Standing
+              </button>
+              <button class="btn btn-secondary" id="uploadPhotoBtn" title="Upload a photo to analyze posture">
+                <i class="fa-solid fa-cloud-arrow-up"></i> <span>Upload Photo</span>
+              </button>
+              <input type="file" id="photoFileInput" accept="image/png, image/jpeg, image/jpg, image/webp" style="display: none;">
+              <button class="btn btn-secondary" id="resetStatsBtnTop" title="Reset Session Stats & Timer">
+                <i class="fa-solid fa-rotate-left"></i> <span>Reset</span>
+              </button>
+              <button class="btn btn-danger" id="toggleCamBtn">
+                <i class="fa-solid fa-video-slash"></i> <span>Stop Camera</span>
+              </button>
+              <button class="btn btn-primary" id="flipCamBtn" title="Toggle mirror view">
+                <i class="fa-solid fa-repeat"></i> <span>Mirror: ON</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Video & Overlay Canvas Container -->
+          <div class="stage-viewport-container">
+            <div class="viewport-wrapper" id="viewportWrapper">
+              <!-- Raw Video (Hidden) -->
+              <video id="webcam" playsinline muted autoplay></video>
+              
+              <!-- Target Output Canvas (60 FPS Decoupled Pipeline) -->
+              <canvas id="outputCanvas"></canvas>
+              
+              <!-- Silhouette Guide Overlay -->
+              <div class="silhouette-guide" id="silhouetteGuide">
+                <div class="guide-line head-line"><span>Head Horizon</span></div>
+                <div class="guide-line shoulder-line"><span>Shoulder Level</span></div>
+                <div class="guide-line spine-line"></div>
+              </div>
+
+              <!-- In-Canvas HUD Metrics -->
+              <div class="canvas-hud-top">
+                <div class="hud-score-card">
+                  <span class="hud-score-label">POSTURE INDEX</span>
+                  <span class="hud-score-value" id="hudScore">98</span>
+                </div>
+                <div class="hud-warnings" id="hudWarningList"></div>
+              </div>
+
+              <div class="canvas-hud-bottom">
+                <div class="hud-tag" id="hudDetectionStatus">
+                  <i class="fa-solid fa-radar"></i> <span id="hudConfidenceText">Searching for Person...</span>
+                </div>
+                <div class="hud-tag" id="hudModeTag">
+                  <i class="fa-solid fa-crosshairs"></i> Mode: Sitting Ergonomics
+                </div>
+              </div>
+
+              <!-- Camera Inactive Placeholder -->
+              <div class="camera-placeholder" id="cameraPlaceholder">
+                <div class="placeholder-icon">
+                  <i class="fa-solid fa-camera-rotate"></i>
+                </div>
+                <h3>Webcam Feed Inactive</h3>
+                <p>Start live video tracking, upload a posture photo for instant analysis, or try simulation mode.</p>
+                <div class="placeholder-actions">
+                  <button class="btn btn-primary" id="startCamBtn">
+                    <i class="fa-solid fa-play"></i> Start Camera
+                  </button>
+                  <button class="btn btn-secondary" id="placeholderUploadBtn">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload Photo
+                  </button>
+                  <button class="btn btn-outline" id="loadSamplePhotoBtn" title="Analyze built-in posture photo">
+                    <i class="fa-solid fa-image"></i> Sample Photo
+                  </button>
+                  <button class="btn btn-outline" id="loadSampleBtn">
+                    <i class="fa-solid fa-circle-play"></i> Simulation
+                  </button>
+                </div>
+              </div>
+
+              <!-- Calibration Countdown Overlay -->
+              <div class="calibration-overlay" id="calibrationOverlay">
+                <div class="calib-countdown" id="calibCountdown">3</div>
+                <h4 style="color: #fff; margin-top: 8px;">Calibrating Neutral Baseline...</h4>
+                <p style="color: #94a3b8; font-size: 0.8rem;">Hold your upright posture naturally for 3 seconds.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Sparkline Timeline Chart (Matching Reference UI Style) -->
+          <div class="portfolio-chart-area">
+            <canvas id="scoreChart"></canvas>
+          </div>
+
+          <!-- Timeline Filter Pills (1H, 24H, 1W, 1M, 1Y, ALL) -->
+          <div class="timeline-pill-row">
+            <button class="time-pill">1H</button>
+            <button class="time-pill">24H</button>
+            <button class="time-pill active">1W</button>
+            <button class="time-pill">1M</button>
+            <button class="time-pill">1Y</button>
+            <button class="time-pill">ALL</button>
+          </div>
+        </div>
+
+        <!-- 1.2 Right Bento Column (Proportional Pastel Cards + Session Telemetry & Reset) -->
+        <div class="bento-right-column">
+          
+          <!-- 3 Pastel Biomechanics Asset Cards (Matching Reference Proportions) -->
+          <div class="pastel-cards-grid">
+            
+            <!-- Card 1: Lavender (Shoulders) -->
+            <div class="pastel-card card-purple">
+              <div class="pastel-card-top">
+                <div class="pastel-card-title">Shoulder Balance</div>
+              </div>
+              <div class="pastel-card-main">
+                <div class="pastel-large-num" id="shoulderAngleVal">0.8°</div>
+                <div class="pastel-card-subtitle" id="shoulderCardSub">Level &amp; Balanced</div>
+                <div class="mini-bar-track">
+                  <div class="mini-bar-fill" id="shoulderBarFill" style="width: 90%;"></div>
+                </div>
+              </div>
+              <div class="pastel-card-bottom">
+                <div class="pastel-icon-circle">
+                  <i class="fa-solid fa-arrows-left-right"></i>
+                </div>
+                <div class="pastel-gain-pill" id="shoulderEval">Balanced</div>
+              </div>
+            </div>
+
+            <!-- Card 2: Mint Green (Head & Cervical) -->
+            <div class="pastel-card card-green">
+              <div class="pastel-card-top">
+                <div class="pastel-card-title">Head &amp; Neck</div>
+              </div>
+              <div class="pastel-card-main">
+                <div class="pastel-large-num" id="headAngleVal">1.2°</div>
+                <div class="pastel-card-subtitle" id="headCardSub">Upright &amp; Centered</div>
+                <div class="mini-bar-track">
+                  <div class="mini-bar-fill" id="headBarFill" style="width: 88%;"></div>
+                </div>
+              </div>
+              <div class="pastel-card-bottom">
+                <div class="pastel-icon-circle">
+                  <i class="fa-solid fa-arrows-up-down"></i>
+                </div>
+                <div class="pastel-gain-pill" id="headEval">Upright</div>
+              </div>
+            </div>
+
+            <!-- Card 3: Butter Yellow (Spine & Slouch) -->
+            <div class="pastel-card card-yellow">
+              <div class="pastel-card-top">
+                <div class="pastel-card-title">Spine Angle</div>
+              </div>
+              <div class="pastel-card-main">
+                <div class="pastel-large-num" id="spineAngleVal">89.8°</div>
+                <div class="pastel-card-subtitle" id="spineCardSub">Straight Back</div>
+                <div class="mini-bar-track">
+                  <div class="mini-bar-fill" id="spineBarFill" style="width: 95%;"></div>
+                </div>
+              </div>
+              <div class="pastel-card-bottom">
+                <div class="pastel-icon-circle">
+                  <i class="fa-solid fa-child-reaching"></i>
+                </div>
+                <div class="pastel-gain-pill" id="spineEval">Straight</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Space-Utilizing Session Telemetry & Real-Time Ergonomic Coach Card -->
+          <div class="session-telemetry-card">
+            <div class="session-card-header">
+              <div class="session-header-left">
+                <i class="fa-solid fa-gauge-high text-cyan"></i>
+                <span class="session-card-title">Session Ergonomics</span>
+              </div>
+              <div class="session-header-right">
+                <span class="session-timer-pill" id="sessionTimeBadge">00:00</span>
+              </div>
+            </div>
+
+            <!-- 4-Stat Metric Box Grid -->
+            <div class="session-stats-grid">
+              <div class="stat-box">
+                <div class="stat-box-num text-success" id="goodPosturePercent">100%</div>
+                <div class="stat-box-label">Good Form</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-box-num" id="currentStreak">0s</div>
+                <div class="stat-box-label"><i class="fa-solid fa-fire text-amber"></i> Streak</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-box-num" id="longestStreakVal">0s</div>
+                <div class="stat-box-label"><i class="fa-solid fa-trophy text-amber"></i> Best</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-box-num text-danger" id="deviationCount">0</div>
+                <div class="stat-box-label">Deviations</div>
+              </div>
+            </div>
+
+            <!-- Real-Time AI Ergonomic Advice Coaching Banner -->
+            <div class="advice-banner" id="adviceContent">
+              <i class="fa-solid fa-circle-check text-success"></i>
+              <span><strong>Optimal Alignment:</strong> Shoulders balanced and head upright. Maintain relaxed breathing.</span>
+            </div>
+
+            <!-- Action Toolbar with Dedicated Reset Button -->
+            <div class="session-card-actions">
+              <button class="btn btn-secondary" id="resetStatsBtnCard" title="Reset Session Stats, Timer & Streaks">
+                <i class="fa-solid fa-rotate-left"></i> <span>Reset Stats</span>
+              </button>
+              <button class="btn btn-primary" id="calibrateBtnCard" title="Calibrate Neutral Posture Baseline">
+                <i class="fa-solid fa-sliders"></i> <span>Calibrate</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 2. Bottom Bento Row (Joint Telemetry Table + Dark AI Action Card) -->
+      <section class="bottom-bento-row">
+        
+        <!-- 2.1 Joint Telemetry Table Card -->
+        <div class="table-bento-card">
+          <div class="table-header-row">
+            <div class="table-title-group">
+              <h2 class="table-main-title">Biomechanical Joint Telemetry</h2>
+              <span class="table-status-subtitle"><i class="fa-solid fa-circle-check"></i> Live Tracking</span>
+            </div>
+            
+            <div class="table-filters">
+              <button class="filter-select-btn" id="filterTimeBtn">
+                <span>Live Feed</span> <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <button class="filter-select-btn" id="filterStatusBtn">
+                <span>All Joints</span> <i class="fa-solid fa-chevron-down"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Joint Metric Rows (Clean Plain-English Telemetry) -->
+          <div class="joint-rows-list">
+            
+            <!-- Row 1: Shoulder Alignment -->
+            <div class="joint-row">
+              <div class="joint-row-left">
+                <div class="joint-avatar-square">S</div>
+                <div>
+                  <div class="joint-name">Shoulder Balance</div>
+                  <div class="joint-code">Left / Right Level</div>
+                </div>
+              </div>
+              <div class="joint-val" id="tableShoulderVal">0.8°</div>
+              <div>
+                <span class="joint-change-pill optimal" id="tableShoulderPill">Balanced</span>
+              </div>
+              <div class="joint-range">&lt; 5.5° Level</div>
+              <div>
+                <button class="joint-star-btn active" title="Target Active"><i class="fa-solid fa-star"></i></button>
+              </div>
+            </div>
+
+            <!-- Row 2: Cervical Head Angle -->
+            <div class="joint-row">
+              <div class="joint-row-left">
+                <div class="joint-avatar-square">H</div>
+                <div>
+                  <div class="joint-name">Head &amp; Neck Alignment</div>
+                  <div class="joint-code">Chin &amp; Ear Upright</div>
+                </div>
+              </div>
+              <div class="joint-val" id="tableHeadVal">1.2°</div>
+              <div>
+                <span class="joint-change-pill optimal" id="tableHeadPill">Upright</span>
+              </div>
+              <div class="joint-range">&lt; 8.0° Upright</div>
+              <div>
+                <button class="joint-star-btn active" title="Target Active"><i class="fa-solid fa-star"></i></button>
+              </div>
+            </div>
+
+            <!-- Row 3: Thoracic Spine Inclination -->
+            <div class="joint-row">
+              <div class="joint-row-left">
+                <div class="joint-avatar-square">T</div>
+                <div>
+                  <div class="joint-name">Spine &amp; Torso Verticality</div>
+                  <div class="joint-code">Back Plumb Line</div>
+                </div>
+              </div>
+              <div class="joint-val" id="tableSpineVal">89.8°</div>
+              <div>
+                <span class="joint-change-pill optimal" id="tableSpinePill">Straight</span>
+              </div>
+              <div class="joint-range">85° – 95° Straight</div>
+              <div>
+                <button class="joint-star-btn active" title="Target Active"><i class="fa-solid fa-star"></i></button>
+              </div>
+            </div>
+
+            <!-- Row 4: Slouch Compression Factor -->
+            <div class="joint-row">
+              <div class="joint-row-left">
+                <div class="joint-avatar-square">C</div>
+                <div>
+                  <div class="joint-name">Sitting Form &amp; Slouch</div>
+                  <div class="joint-code">Torso Height Extension</div>
+                </div>
+              </div>
+              <div class="joint-val" id="slouchRatioVal">96%</div>
+              <div>
+                <span class="joint-change-pill optimal" id="slouchEval">Tall Form</span>
+              </div>
+              <div class="joint-range">&gt; 84% Height</div>
+              <div>
+                <button class="joint-star-btn active" title="Target Active"><i class="fa-solid fa-star"></i></button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 2.2 Dark Action Card (Matching the "Earn Free Crypto" Promo Card) -->
+        <div class="dark-action-card">
+          <div class="dark-card-content">
+            <h3 class="dark-card-headline">
+              Calibrate <span class="headline-pill-box">AI</span> baseline with PostureGuard!
+            </h3>
+            <p class="dark-card-sub">
+              Sit upright naturally and let PoseNet lock your personal ergonomic baseline for zero false alerts.
+            </p>
+          </div>
+
+          <div class="dark-card-actions">
+            <button class="cta-white-btn" id="calibrateBtn">
+              Calibrate Now
+            </button>
+
+            <!-- Quick Alert Control Toggles -->
+            <div class="quick-toggle-group">
+              <button class="dark-toggle-icon active" id="voiceToggleBtn" title="Voice Alerts Toggle">
+                <i class="fa-solid fa-bullhorn"></i>
+              </button>
+              <button class="dark-toggle-icon active" id="soundToggleBtn" title="Chime Sound Toggle">
+                <i class="fa-solid fa-volume-high"></i>
+              </button>
+              <button class="dark-toggle-icon active" id="guideToggleBtn" title="Silhouette Guide Toggle">
+                <i class="fa-solid fa-border-all"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Geometric Wireframe Line Art SVG in Background (Matching Reference Card) -->
+          <svg class="dark-card-art" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="40,160 140,80 190,140 90,190" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" />
+            <polygon points="60,140 160,60 195,110 95,170" stroke="rgba(255,255,255,0.18)" stroke-width="1.5" />
+            <polygon points="80,120 180,40 198,80 98,150" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" />
+            <line x1="40" y1="160" x2="80" y2="120" stroke="rgba(255,255,255,0.2)" stroke-width="1.2" />
+            <line x1="140" y1="80" x2="180" y2="40" stroke="rgba(255,255,255,0.2)" stroke-width="1.2" />
+            <line x1="190" y1="140" x2="198" y2="80" stroke="rgba(255,255,255,0.2)" stroke-width="1.2" />
+          </svg>
+        </div>
+
+      </section>
+
+      <!-- 3. Collapsible AI Engine & Posture Sensitivity Drawer -->
+      <section class="tuning-drawer">
+        <div class="tuning-header" id="tuningHeaderToggle" title="Click to expand/collapse AI engine settings">
+          <div class="tuning-title-wrap">
+            <i class="fa-solid fa-sliders text-cyan"></i>
+            <span>AI Processing & Sensitivity Configuration</span>
+            <i class="fa-solid fa-chevron-down" id="tuningChevron"></i>
+          </div>
+          <div style="display: flex; gap: 8px;" onclick="event.stopPropagation();">
+            <button class="btn btn-secondary btn-sm" id="resetStatsBtn">
+              <i class="fa-solid fa-rotate-left"></i> Reset Stats
+            </button>
+            <button class="btn btn-secondary btn-sm" id="exportReportBtn">
+              <i class="fa-solid fa-download"></i> Export Data
+            </button>
+          </div>
+        </div>
+
+        <div class="tuning-body collapsed" id="tuningBody">
+          <div class="tuning-inputs-grid">
+            <div class="tuning-item">
+              <label for="sensitivitySelect">Posture Sensitivity</label>
+              <select id="sensitivitySelect">
+                <option value="relaxed">Relaxed (Gentle Thresholds)</option>
+                <option value="normal" selected>Normal (Recommended)</option>
+                <option value="strict">Strict (Physiotherapy)</option>
+              </select>
+            </div>
+
+            <div class="tuning-item">
+              <label for="inputResolutionSelect">Camera & AI Speed Mode</label>
+              <select id="inputResolutionSelect">
+                <option value="257" selected>Ultra Smooth (257px · 60 FPS)</option>
+                <option value="353">Balanced (353px · Standard)</option>
+                <option value="513">Deep Precision (513px · High Res)</option>
+              </select>
+            </div>
+
+            <div class="tuning-item">
+              <label for="modelMultiplier">PoseNet Multiplier</label>
+              <select id="modelMultiplier">
+                <option value="0.50">0.50 (High FPS, Low Latency)</option>
+                <option value="0.75" selected>0.75 (Balanced MobileNet)</option>
+                <option value="1.00">1.00 (Maximum Precision)</option>
+              </select>
+            </div>
+
+            <div class="tuning-item">
+              <label for="alertDelay">Voice Warning Delay</label>
+              <select id="alertDelay">
+                <option value="3">3 seconds</option>
+                <option value="5" selected>5 seconds</option>
+                <option value="10">10 seconds</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Documentation Modal -->
+  <div class="modal-backdrop" id="docModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-book-open"></i> Posture Detection System Architecture</h3>
+        <button class="modal-close-btn" id="closeDocModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <h4>1. System Architecture</h4>
+        <p>This system utilizes <strong>PoseNet</strong> with MobileNetV1 executed on <strong>TensorFlow.js WebGL</strong> to track 17 anatomical keypoints at 60 FPS with zero cloud data transmission.</p>
+        
+        <h4>2. Mathematical Posture Formulation</h4>
+        <p>Angles are computed using standard trigonometric 2-argument arctangent:</p>
+        <pre><code>Angle = atan2(y2 - y1, x2 - x1) * (180 / &pi;)</code></pre>
+        <ul>
+          <li><strong>Shoulder Alignment:</strong> Computed between left and right acromioclavicular joints.</li>
+          <li><strong>Head Alignment & Tech-Neck:</strong> Angle between cervical spine (mid-shoulder) and cranial center.</li>
+          <li><strong>Spine Angle:</strong> Vector from midpoint of hips to midpoint of shoulders.</li>
+          <li><strong>Slouch Factor:</strong> Ratio of vertical distance between cranial baseline and shoulder plane.</li>
+        </ul>
+        <p style="margin-top: 12px;"><strong>Author:</strong> Aryan Raj Pandey (B.Tech CSE - AI & ML)</p>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end;">
+        <button class="btn btn-primary" id="closeDocModalBtn2">Got it, Back to System</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Compatibility Elements for JavaScript Event Listeners & Metrics -->
+  <div class="hidden-compat" style="display: none;">
+    <button id="modeDemoBtn"></button>
+    <input type="checkbox" id="voiceAlertToggle" checked>
+    <input type="checkbox" id="soundToneToggle" checked>
+    <input type="checkbox" id="guideToggle" checked>
+    <div id="scoreRingFill"></div>
+    <div id="postureStateBadge">Optimal</div>
+    <div id="slouchBarFill"></div>
+  </div>
+
+  <!-- Core Scripts -->
+  <script src="js/audio-alerts.js"></script>
+  <script src="js/posture-classifier.js"></script>
+  <script src="js/posenet-logic.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
